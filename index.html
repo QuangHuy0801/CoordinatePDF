@@ -93,6 +93,7 @@
         const originalHeight = 3506;
         let currentPdf = null;
         let lastClickPoint = null;
+        let lastClickCoordinates = null;
         let lastHighlightedItem = null;
 
         document.getElementById('uploadForm').addEventListener('submit', function(event) {
@@ -124,7 +125,6 @@
                 const viewport = page.getViewport({scale: 1.5});
                 const canvas = document.createElement('canvas');
                 const context = canvas.getContext('2d');
-                
                 const scale = document.getElementById('fileDisplayArea').clientWidth / viewport.width;
                 const scaledViewport = page.getViewport({scale: scale});
                 
@@ -143,50 +143,68 @@
                     pdfOverlay.appendChild(canvas);
                     fileDisplayArea.appendChild(pdfOverlay);
 
+                    pdfOverlay.addEventListener('click', handleClick);
+
                     renderPages(pdf, pageNumber + 1);
                 });
             });
         }
 
-        document.addEventListener('click', function(e) {
-            const pdfOverlays = document.getElementsByClassName('pdfOverlay');
-            const coordinateList = document.getElementById('coordinateList');
+        function handleClick(e) {
+            const rect = e.target.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const scaleX = originalWidth / rect.width;
+            const scaleY = originalHeight / rect.height;
+            const pdfX = Math.round(x * scaleX);
+            const pdfY = Math.round(y * scaleY);
             
-            for (let i = 0; i < pdfOverlays.length; i++) {
-                const rect = pdfOverlays[i].getBoundingClientRect();
-                if (e.clientX >= rect.left && e.clientX <= rect.right &&
-                    e.clientY >= rect.top && e.clientY <= rect.bottom) {
-                    const x = e.clientX - rect.left;
-                    const y = e.clientY - rect.top;
-                    const scaleX = originalWidth / rect.width;
-                    const scaleY = originalHeight / rect.height;
-                    const pdfX = Math.round(x * scaleX);
-                    const pdfY = Math.round(y * scaleY);
-                    if (lastHighlightedItem) {
-                        lastHighlightedItem.classList.remove('highlight');
-                    }
+            const coordinateList = document.getElementById('coordinateList');
+            if (lastHighlightedItem) {
+                lastHighlightedItem.classList.remove('highlight');
+            }
 
-                    const listItem = document.createElement('li');
-                    listItem.textContent = `Page ${i + 1} - X: ${pdfX}, Y: ${pdfY}`;
-                    listItem.classList.add('highlight');
-                    coordinateList.insertBefore(listItem, coordinateList.firstChild);
-                    
-                    lastHighlightedItem = listItem;
-                    if (lastClickPoint) {
-                        lastClickPoint.parentNode.removeChild(lastClickPoint);
-                    }
+            const listItem = document.createElement('li');
+            listItem.textContent = `Page ${Array.from(e.target.parentNode.parentNode.children).indexOf(e.target.parentNode) + 1} - X: ${pdfX}, Y: ${pdfY}`;
+            listItem.classList.add('highlight');
+            coordinateList.insertBefore(listItem, coordinateList.firstChild);
+            
+            lastHighlightedItem = listItem;
+            if (lastClickPoint) {
+                lastClickPoint.parentNode.removeChild(lastClickPoint);
+            }
 
-                    const clickPoint = document.createElement('div');
-                    clickPoint.className = 'clickPoint';
-                    clickPoint.style.left = `${x}px`;
-                    clickPoint.style.top = `${y}px`;
-                    pdfOverlays[i].appendChild(clickPoint);
+            const relativeX = x / rect.width;
+            const relativeY = y / rect.height;
+            lastClickCoordinates = { 
+                page: Array.from(e.target.parentNode.parentNode.children).indexOf(e.target.parentNode), 
+                x: relativeX, 
+                y: relativeY 
+            };
 
-                    lastClickPoint = clickPoint;
-                    
-                    console.log(`Clicked at PDF coordinates - Page: ${i + 1}, X: ${pdfX}, Y: ${pdfY}`);
-                    break;
-                }
+            const clickPoint = document.createElement('div');
+            clickPoint.className = 'clickPoint';
+            updateClickPointPosition(clickPoint, rect.width, rect.height);
+            e.target.parentNode.appendChild(clickPoint);
+
+            lastClickPoint = clickPoint;
+            
+            console.log(`Clicked at PDF coordinates - Page: ${lastClickCoordinates.page + 1}, X: ${pdfX}, Y: ${pdfY}`);
+        }
+
+        function updateClickPointPosition(clickPoint, width, height) {
+            if (lastClickCoordinates) {
+                clickPoint.style.left = `${lastClickCoordinates.x * width}px`;
+                clickPoint.style.top = `${lastClickCoordinates.y * height}px`;
+            }
+        }
+
+        window.addEventListener('resize', function() {
+            if (lastClickPoint && lastClickCoordinates) {
+                const pdfOverlays = document.getElementsByClassName('pdfOverlay');
+                const overlay = pdfOverlays[lastClickCoordinates.page];
+                const rect = overlay.getBoundingClientRect();
+                updateClickPointPosition(lastClickPoint, rect.width, rect.height);
             }
         });
 
@@ -218,6 +236,7 @@
                 lastClickPoint.parentNode.removeChild(lastClickPoint);
                 lastClickPoint = null;
             }
+            lastClickCoordinates = null;
             lastHighlightedItem = null;
         });
     </script>
