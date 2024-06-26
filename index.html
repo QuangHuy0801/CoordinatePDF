@@ -3,11 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF Viewer with Coordinate Tracking</title>
+    <title>PDF Viewer with Coordinate Tracking and Text Selection</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.worker.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf_viewer.min.css">
     <style>
         body {
             display: flex;
             font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
         }
         .sidebar {
             position: fixed;
@@ -19,6 +24,7 @@
             height: 100vh;
             overflow-y: auto;
             background-color: #f9f9f9;
+            box-sizing: border-box;
         }
         .main-content {
             margin-left: 25%;
@@ -44,16 +50,9 @@
         .pdfOverlay {
             position: relative; 
             width: 100%; 
-            height: 0; 
-            padding-top: calc(100% * 1.4142); 
             margin-bottom: 20px;
         }
         canvas {
-            position: absolute; 
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
             border: 2px solid #000;
         }
         .clickPoint {
@@ -69,15 +68,31 @@
             background-color: yellow;
             font-weight: bold;
         }
+        .textLayer {
+            position: absolute;
+            left: 0;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            overflow: hidden;
+            opacity: 0.2;
+            line-height: 1.0;
+        }
+        .textLayer > span {
+            color: transparent;
+            position: absolute;
+            white-space: pre;
+            cursor: text;
+            transform-origin: 0% 0%;
+        }
     </style>
 </head>
 <body>
     <div class="sidebar">
         <h1>PDF Viewer with Coordinate Tracking</h1>
-        <form id="uploadForm">
-            <input type="file" id="fileInput" accept="application/pdf">
-            <button type="submit">Upload</button>
-        </form>
+        <input type="file" id="fileInput" accept="application/pdf">
+        <h2>PDF Info</h2>
+        <div id="pdfInfo"></div>
         <h2>Clicked Coordinates</h2>
         <ul id="coordinateList"></ul>
         <button id="clearButton">Clear</button>
@@ -87,19 +102,14 @@
         <div id="pdfCoordinates"></div>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js"></script>
     <script>
-        const originalWidth = 2477;
-        const originalHeight = 3506;
         let currentPdf = null;
         let lastClickPoint = null;
         let lastClickCoordinates = null;
         let lastHighlightedItem = null;
 
-        document.getElementById('uploadForm').addEventListener('submit', function(event) {
-            event.preventDefault();
-            const fileInput = document.getElementById('fileInput');
-            const file = fileInput.files[0];
+        document.getElementById('fileInput').addEventListener('change', function(event) {
+            const file = event.target.files[0];
             const fileDisplayArea = document.getElementById('fileDisplayArea');
 
             if (file && file.type === 'application/pdf') {
@@ -110,6 +120,7 @@
                     loadingTask.promise.then(function(pdf) {
                         currentPdf = pdf;
                         renderPages(pdf, 1);
+                        displayPdfInfo(pdf);
                     });
                 };
                 reader.readAsArrayBuffer(file);
@@ -120,14 +131,14 @@
 
         function renderPages(pdf, pageNumber) {
             if (pageNumber > pdf.numPages) return;
-            
+
             pdf.getPage(pageNumber).then(function(page) {
-                const viewport = page.getViewport({scale: 1.5});
+                const viewport = page.getViewport({scale: 1});
                 const canvas = document.createElement('canvas');
                 const context = canvas.getContext('2d');
                 const scale = document.getElementById('fileDisplayArea').clientWidth / viewport.width;
                 const scaledViewport = page.getViewport({scale: scale});
-                
+
                 canvas.height = scaledViewport.height;
                 canvas.width = scaledViewport.width;
 
@@ -135,99 +146,98 @@
                     canvasContext: context,
                     viewport: scaledViewport
                 };
-                
+
+                const fileDisplayArea = document.getElementById('fileDisplayArea');
+                const pdfOverlay = document.createElement('div');
+                pdfOverlay.className = 'pdfOverlay';
+                pdfOverlay.style.width = `${scaledViewport.width}px`;
+                pdfOverlay.style.height = `${scaledViewport.height}px`;
+
+                const textLayerDiv = document.createElement('div');
+                textLayerDiv.className = 'textLayer';
+                textLayerDiv.style.width = `${scaledViewport.width}px`;
+                textLayerDiv.style.height = `${scaledViewport.height}px`;
+
+                pdfOverlay.appendChild(canvas);
+                pdfOverlay.appendChild(textLayerDiv);
+                pdfOverlay.setAttribute('data-original-width', viewport.width);
+                pdfOverlay.setAttribute('data-original-height', viewport.height);
+                pdfOverlay.setAttribute('data-page-number', pageNumber);
+                fileDisplayArea.appendChild(pdfOverlay);
+
+                pdfOverlay.addEventListener('click', handleClick);
+                pdfOverlay.addEventListener('mousemove', handleMouseMove);
+
                 page.render(renderContext).promise.then(function() {
-                    const fileDisplayArea = document.getElementById('fileDisplayArea');
-                    const pdfOverlay = document.createElement('div');
-                    pdfOverlay.className = 'pdfOverlay';
-                    pdfOverlay.appendChild(canvas);
-                    fileDisplayArea.appendChild(pdfOverlay);
-
-                    pdfOverlay.addEventListener('click', handleClick);
-
-                    renderPages(pdf, pageNumber + 1);
+                    return page.getTextContent();
+                }).then(function(textContent) {
+                    pdfjsLib.renderTextLayer({
+                        textContent: textContent,
+                        container: textLayerDiv,
+                        viewport: scaledViewport,
+                        textDivs: []
+                    });
                 });
+                const pdfInfo = document.getElementById('pdfInfo');
+                pdfInfo.textContent = `Page ${pageNumber} Dimensions: ${viewport.width.toFixed(2)} x ${viewport.height.toFixed(2)} points`;
+
+                renderPages(pdf, pageNumber + 1);
             });
         }
 
         function handleClick(e) {
-            const rect = e.target.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
-            const scaleX = originalWidth / rect.width;
-            const scaleY = originalHeight / rect.height;
-            const pdfX = Math.round(x * scaleX);
-            const pdfY = Math.round(y * scaleY);
-            
+            const coordinates = getCoordinates(e);
             const coordinateList = document.getElementById('coordinateList');
             if (lastHighlightedItem) {
                 lastHighlightedItem.classList.remove('highlight');
             }
 
             const listItem = document.createElement('li');
-            listItem.textContent = `Page ${Array.from(e.target.parentNode.parentNode.children).indexOf(e.target.parentNode) + 1} - X: ${pdfX}, Y: ${pdfY}`;
+            listItem.textContent = `Page ${coordinates.page} - X: ${Math.round(coordinates.x)}pt, Y: ${Math.round(coordinates.y)}pt`;
             listItem.classList.add('highlight');
             coordinateList.insertBefore(listItem, coordinateList.firstChild);
-            
+
             lastHighlightedItem = listItem;
             if (lastClickPoint) {
                 lastClickPoint.parentNode.removeChild(lastClickPoint);
             }
 
-            const relativeX = x / rect.width;
-            const relativeY = y / rect.height;
-            lastClickCoordinates = { 
-                page: Array.from(e.target.parentNode.parentNode.children).indexOf(e.target.parentNode), 
-                x: relativeX, 
-                y: relativeY 
-            };
-
             const clickPoint = document.createElement('div');
             clickPoint.className = 'clickPoint';
-            updateClickPointPosition(clickPoint, rect.width, rect.height);
+            clickPoint.style.left = `${e.offsetX}px`;
+            clickPoint.style.top = `${e.offsetY}px`;
             e.target.parentNode.appendChild(clickPoint);
 
             lastClickPoint = clickPoint;
-            
-            console.log(`Clicked at PDF coordinates - Page: ${lastClickCoordinates.page + 1}, X: ${pdfX}, Y: ${pdfY}`);
+
+            console.log(`Clicked at PDF coordinates - ${listItem.textContent}`);
         }
 
-        function updateClickPointPosition(clickPoint, width, height) {
-            if (lastClickCoordinates) {
-                clickPoint.style.left = `${lastClickCoordinates.x * width}px`;
-                clickPoint.style.top = `${lastClickCoordinates.y * height}px`;
-            }
-        }
-
-        window.addEventListener('resize', function() {
-            if (lastClickPoint && lastClickCoordinates) {
-                const pdfOverlays = document.getElementsByClassName('pdfOverlay');
-                const overlay = pdfOverlays[lastClickCoordinates.page];
-                const rect = overlay.getBoundingClientRect();
-                updateClickPointPosition(lastClickPoint, rect.width, rect.height);
-            }
-        });
-
-        document.addEventListener('mousemove', function(e) {
-            const pdfOverlays = document.getElementsByClassName('pdfOverlay');
+        function handleMouseMove(e) {
+            const coordinates = getCoordinates(e);
             const pdfCoordinates = document.getElementById('pdfCoordinates');
-            
-            for (let i = 0; i < pdfOverlays.length; i++) {
-                const rect = pdfOverlays[i].getBoundingClientRect();
-                if (e.clientX >= rect.left && e.clientX <= rect.right &&
-                    e.clientY >= rect.top && e.clientY <= rect.bottom) {
-                    const x = e.clientX - rect.left;
-                    const y = e.clientY - rect.top;
-                    const scaleX = originalWidth / rect.width;
-                    const scaleY = originalHeight / rect.height;
-                    pdfCoordinates.textContent = `Page ${i + 1} - X: ${Math.round(x * scaleX)}, Y: ${Math.round(y * scaleY)}`;
-                    pdfCoordinates.style.display = 'block';
-                    return;
-                }
-            }
-            
-            pdfCoordinates.style.display = 'none';
-        });
+            pdfCoordinates.textContent = `Page ${coordinates.page} - X: ${Math.round(coordinates.x)}pt, Y: ${Math.round(coordinates.y)}pt`;
+            pdfCoordinates.style.display = 'block';
+        }
+
+        function getCoordinates(e) {
+            const pdfOverlay = e.target.closest('.pdfOverlay');
+            const rect = pdfOverlay.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const pageNumber = parseInt(pdfOverlay.getAttribute('data-page-number'));
+            const scaleX = parseFloat(pdfOverlay.getAttribute('data-original-width')) / rect.width;
+            const scaleY = parseFloat(pdfOverlay.getAttribute('data-original-height')) / rect.height;
+
+            const pdfX = x * scaleX;
+            const pdfY = (rect.height - y) * scaleY; 
+
+            return {
+                page: pageNumber,
+                x: pdfX,
+                y: pdfY
+            };
+        }
 
         document.getElementById('clearButton').addEventListener('click', function() {
             const coordinateList = document.getElementById('coordinateList');
