@@ -541,13 +541,13 @@ function displayCoordinates() {
 }
 
 function copyAllAreas() {
-    const allAreasText = keypressModeData.map(area => `Area ${area.id}:
-{
+    const allAreasText =`[`+  keypressModeData.map(area => `
+ {
     "x_top_left": ${area.x_top_left},
     "y_top_left": ${area.y_top_left},
     "x_bottom_right": ${area.x_bottom_right},
     "y_bottom_right": ${area.y_bottom_right}
-}`).join('\n\n');
+ }`).join(',')+`\n]`;
 
     const copyAllBtn = document.getElementById('copyAllBtn');
     navigator.clipboard.writeText(allAreasText).then(() => {
