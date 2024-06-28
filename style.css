@@ -1,0 +1,450 @@
+body {
+    display: flex;
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    font-size: 16px;
+}
+.sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 25%;
+    padding: 20px;
+    border-right: 1px solid #ccc;
+    height: 100vh;
+    overflow-y: auto;
+    background-color: #f9f9f9;
+    box-sizing: border-box;
+}
+.main-content {
+    margin-left: 25%;
+    padding: 20px;
+    flex: 3;
+}
+.file-container {
+    position: relative;
+    width: 100%;
+    margin-top: 20px;
+}
+#pdfCoordinates {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    background-color: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 5px 10px;
+    border-radius: 5px;
+    z-index: 1000;
+    display: none;
+}
+.pdfOverlay {
+    position: relative; 
+    width: 100%; 
+    margin-bottom: 20px;
+    cursor: crosshair;
+}
+canvas {
+    border: 2px solid #000;
+}
+.deleteBtn {
+    margin-left: 10px;
+    cursor: pointer;
+}
+.clickPoint {
+    position: absolute;
+    width: 2px; 
+    height: 2px; 
+    background-color: transparent;
+    pointer-events: none;
+    font-weight: bold;
+    color:rgb(254, 8, 8);
+}
+.pointNumber {
+    position: absolute;
+    color: red;
+    font-weight: bold;
+    font-size: 12px;
+    top: -15px;  
+    left: 15px;  
+}
+.clickPoint::before, .clickPoint::after {
+    content: '';
+    position: absolute;
+    background-color: rgba(255, 0, 0, 0.5); 
+}
+.clickPoint::before {
+    width: 17px; 
+    height: 2px; 
+    left: 50%;
+    top: 50%; 
+    transform: translateX(-50%); 
+}
+.clickPoint::after {
+    width: 2px; 
+    height: 17px;
+    left: 50%;
+    top: 50%; 
+    transform: translateY(-50%); 
+}
+/* .highlight {
+    background-color: yellow;
+    font-weight: bold;
+} */
+.textLayer {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    overflow: hidden;
+    opacity: 0.2;
+    line-height: 1.0;
+}
+.textLayer > span {
+    color: transparent;
+    position: absolute;
+    white-space: pre;
+    cursor: crosshair;
+    transform-origin: 0% 0%;
+}
+.markedArea {
+    position: absolute;
+    border: 2px solid rgba(255, 0, 0, 0.5);
+    pointer-events: none;
+    z-index: 10;
+}
+.deleteBtn {
+    background-color: #ff4d4d;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 0;
+}
+
+.deleteBtn:hover {
+    background-color: #ff1a1a;
+}
+#coordinateList li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 5px;
+    padding: 5px;
+    border-bottom: 1px solid #eee;
+}
+
+.coordinate-info {
+    flex-grow: 1;
+    margin-right: 10px;
+}
+.temporaryPoint {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    background-color: blue;
+    border-radius: 50%;
+    z-index: 1000;
+}
+
+.temporaryPoint .pointNumber {
+    position: absolute;
+    color: blue;
+    font-weight: bold;
+    font-size: 12px;
+    top: -15px;
+    left: 15px;
+}
+.areaNumber {
+    position: absolute;
+    top: -20px;
+    left: -10px;
+    background-color: red;
+    color: white;
+    padding: 2px 5px;
+    border-radius: 50%;
+    font-size: 12px;
+    font-weight: bold;
+}
+.temporaryArea {
+    position: absolute;
+    border: 2px dashed red;
+    background-color: rgba(255, 0, 0, 0.1);
+    pointer-events: none;
+    z-index: 1000;
+}
+pre {
+    background-color: #f4f4f4;
+    border: 1px solid #ddd;
+    border-left: 3px solid #f36d33;
+    color: #666;
+    page-break-inside: avoid;
+    font-family: monospace;
+    font-size: 15px;
+    line-height: 1.6;
+    margin-bottom: 1.6em;
+    max-width: 80%;
+    overflow: auto;
+    padding: 1em 1.5em;
+    display: block;
+    word-wrap: break-word;
+}
+.copyBtn, #copyAllBtn {
+    background-color: #4CAF50;
+    border: none;
+    color: white;
+    padding: 5px 10px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 12px;
+    margin: 2px 2px;
+    cursor: pointer;
+    border-radius: 3px;
+}
+
+.copyBtn:hover, #copyAllBtn:hover {
+    background-color: #45a049;
+}
+.copyBtn.copied, #copyAllBtn.copied {
+    background-color: #45a049;
+}
+.area-container {
+    margin-bottom: 10px; /* khoảng cách giữa các container */
+}
+
+.button-container {
+    margin-top: 10px; /* khoảng cách phía trên các nút */
+    display: flex;
+    gap: 10px;
+}
+.button-container-area {
+    margin-top: 10px; 
+    display: flex;
+    gap: 10px; 
+}
+
+.copyBtn, .deleteBtn {
+    padding: 5px 10px; /* kích thước nút */
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.copyBtn {
+    background-color: #4CAF50; /* màu nền nút Copy */
+    color: white;
+}
+
+.deleteBtn {
+    background-color: #f44336; /* màu nền nút Delete */
+    color: white;
+}
+.separator {
+    margin: 20px 0;
+    border: none;
+    border-top: 1px solid #ccc;
+}
+#copyXPointsBtn {
+    background-color: #4CAF50;
+    border: none;
+    color: white;
+    padding: 5px 10px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 12px;
+    margin: 2px 2px;
+    cursor: pointer;
+    border-radius: 3px;
+}
+
+#copyXPointsBtn:hover {
+    background-color: #45a049;
+}
+
+#copyXPointsBtn.copied {
+    background-color: #45a049;
+}
+.button-container {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 15px;
+}
+
+.left-buttons {
+    display: flex;
+    gap: 10px; /* Space between the left buttons */
+}
+
+#copyAllBtn, #copyXPointsBtn, #clearButton,#clearAllButton {
+    background-color: #4CAF50;
+    border: none;
+    color: white;
+    padding: 5px 10px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 12px;
+    cursor: pointer;
+    border-radius: 3px;
+}
+
+.button-container {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 15px;
+}
+
+.left-buttons {
+    display: flex;
+    gap: 10px; /* Space between the left buttons */
+}
+
+#copyAllBtn, #copyXPointsBtn, #clearButton,#clearAllButton {
+    background-color: #4CAF50;
+    border: none;
+    color: white;
+    padding: 5px 10px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 12px;
+    cursor: pointer;
+    border-radius: 3px;
+}
+
+#copyAllBtn:hover, #copyXPointsBtn:hover, #clearButton:hover,#clearAllButton:hover {
+    background-color: #45a049;
+}
+
+#copyAllBtn.copied, #copyXPointsBtn.copied {
+    background-color: #45a049;
+}
+
+#clearButton {
+    background-color: #f44336; /* Different color for clear button */
+}
+
+#clearButton:hover {
+    background-color: #d32f2f;
+}
+
+#clearAllButton {
+    background-color: #f44336; /* Different color for clear button */
+}
+
+#clearAllButton:hover {
+    background-color: #d32f2f;
+}
+.mode-container {
+    display: flex;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+#modeInstructions {
+    margin-left: 10px;
+    font-style: italic;
+    color: #666;
+}
+.display-mode {
+    margin-bottom: 15px;
+}
+
+.display-mode label {
+    margin-right: 15px;
+}
+#pageNavigation {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-top: 15px;
+}
+
+#pageNavigation button {
+    margin: 0 10px;
+}
+.pdf-info-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 10px;
+}
+
+/* .pdf-info-container h3 {
+    margin: 0;
+    white-space: nowrap;
+} */
+
+#pdfInfo {
+    font-size: 14px;
+}
+
+
+.sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 25%;
+    max-width: 400px; 
+    min-width: 200px; 
+    padding: 1em;
+    border-right: 1px solid #ccc;
+    height: 100vh;
+    overflow-y: auto;
+    background-color: #f9f9f9;
+    box-sizing: border-box;
+}
+
+.main-content {
+    padding: 1em;
+    flex: 1;
+}
+@media (max-width: 768px) {
+    body {
+        flex-direction: column;
+    }
+    .sidebar {
+        position: static;
+        width: 100%;
+        max-width: none;
+        height: auto;
+        border-right: none;
+        border-bottom: 1px solid #ccc;
+    }
+
+    .main-content {
+        margin-left: 0;
+    }
+}
+
+h3 {
+    font-size: 1.2em;
+}
+
+button, select, input {
+    font-size: 0.9em;
+}
+
+#coordinateList {
+    font-size: 0.9em;
+}
+
+canvas {
+    width: 100% !important;
+    height: auto !important;
+}
+.pdfOverlay {
+    width: 100%;
+    max-width: 90vw; 
+    margin: 0 auto;
+}

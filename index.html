@@ -3,252 +3,53 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF Viewer with Coordinate Tracking and Text Selection</title>
+    <title>PDF Viewer with Coordinate Tracking and Key Press Marking</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.worker.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf_viewer.min.css">
-    <style>
-        body {
-            display: flex;
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-        }
-        .sidebar {
-            position: fixed;
-            left: 0;
-            top: 0;
-            width: 25%;
-            padding: 20px;
-            border-right: 1px solid #ccc;
-            height: 100vh;
-            overflow-y: auto;
-            background-color: #f9f9f9;
-            box-sizing: border-box;
-        }
-        .main-content {
-            margin-left: 25%;
-            padding: 20px;
-            flex: 3;
-        }
-        .file-container {
-            position: relative;
-            width: 100%;
-            margin-top: 20px;
-        }
-        #pdfCoordinates {
-            position: fixed;
-            top: 10px;
-            right: 10px;
-            background-color: rgba(0, 0, 0, 0.7);
-            color: white;
-            padding: 5px 10px;
-            border-radius: 5px;
-            z-index: 1000;
-            display: none;
-        }
-        .pdfOverlay {
-            position: relative; 
-            width: 100%; 
-            margin-bottom: 20px;
-        }
-        canvas {
-            border: 2px solid #000;
-        }
-        .clickPoint {
-            position: absolute;
-            width: 10px;
-            height: 10px;
-            background-color: rgba(255, 0, 0, 0.5); 
-            border-radius: 50%;
-            transform: translate(-50%, -50%);
-            pointer-events: none;
-        }
-        .highlight {
-            background-color: yellow;
-            font-weight: bold;
-        }
-        .textLayer {
-            position: absolute;
-            left: 0;
-            top: 0;
-            right: 0;
-            bottom: 0;
-            overflow: hidden;
-            opacity: 0.2;
-            line-height: 1.0;
-        }
-        .textLayer > span {
-            color: transparent;
-            position: absolute;
-            white-space: pre;
-            cursor: text;
-            transform-origin: 0% 0%;
-        }
-    </style>
+    <link rel="stylesheet" href="./style.css">
 </head>
 <body>
     <div class="sidebar">
-        <h1>PDF Viewer with Coordinate Tracking</h1>
-        <input type="file" id="fileInput" accept="application/pdf">
-        <h2>PDF Info</h2>
-        <div id="pdfInfo"></div>
-        <h2>Clicked Coordinates</h2>
+        <h3>PDF Viewer with Coordinate Tracking</h3>
+        <div class="input-container">
+            <input type="file" id="fileInput" accept="application/pdf">
+        </div>
+        <hr class="separator">
+        <div class="mode-container">
+            <select id="modeSelect">
+                <option value="point">Point Mode</option>
+                <option value="area">Area Mode</option>
+            </select>
+            <span id="modeInstructions"></span>
+        </div>
+<div class="display-mode">
+    <select id="pageDisplaySelect">
+        <option value="single">First Page</option>
+        <option value="all">All Pages</option>
+    </select>
+</div>
+        <!-- <div id="pageNavigation"></div> -->
+        <div class="pdf-info-container">
+            <div>Size:</div>
+            <div id="pdfInfo"></div>
+        </div>
+        <h3>List selected</h3>
+        <div class="button-container">
+            <div class="left-buttons">
+                <button id="copyAllBtn">Copy All Areas</button>
+                <button id="copyXPointsBtn">Copy X Points</button>
+            </div>
+            <div class="right-buttons">
+                <button id="clearButton">Clear</button>
+                <button id="clearAllButton">Clear All</button>
+            </div>
+        </div>
         <ul id="coordinateList"></ul>
-        <button id="clearButton">Clear</button>
     </div>
     <div class="main-content">
         <div id="fileDisplayArea" class="file-container"></div>
         <div id="pdfCoordinates"></div>
     </div>
-
-    <script>
-        let currentPdf = null;
-        let lastClickPoint = null;
-        let lastClickCoordinates = null;
-        let lastHighlightedItem = null;
-
-        document.getElementById('fileInput').addEventListener('change', function(event) {
-            const file = event.target.files[0];
-            const fileDisplayArea = document.getElementById('fileDisplayArea');
-
-            if (file && file.type === 'application/pdf') {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    fileDisplayArea.innerHTML = '';
-                    const loadingTask = pdfjsLib.getDocument({data: e.target.result});
-                    loadingTask.promise.then(function(pdf) {
-                        currentPdf = pdf;
-                        renderPages(pdf, 1);
-                        displayPdfInfo(pdf);
-                    });
-                };
-                reader.readAsArrayBuffer(file);
-            } else {
-                fileDisplayArea.innerHTML = 'Please select a PDF file.';
-            }
-        });
-
-        function renderPages(pdf, pageNumber) {
-            if (pageNumber > pdf.numPages) return;
-
-            pdf.getPage(pageNumber).then(function(page) {
-                const viewport = page.getViewport({scale: 1});
-                const canvas = document.createElement('canvas');
-                const context = canvas.getContext('2d');
-                const scale = document.getElementById('fileDisplayArea').clientWidth / viewport.width;
-                const scaledViewport = page.getViewport({scale: scale});
-
-                canvas.height = scaledViewport.height;
-                canvas.width = scaledViewport.width;
-
-                const renderContext = {
-                    canvasContext: context,
-                    viewport: scaledViewport
-                };
-
-                const fileDisplayArea = document.getElementById('fileDisplayArea');
-                const pdfOverlay = document.createElement('div');
-                pdfOverlay.className = 'pdfOverlay';
-                pdfOverlay.style.width = `${scaledViewport.width}px`;
-                pdfOverlay.style.height = `${scaledViewport.height}px`;
-
-                const textLayerDiv = document.createElement('div');
-                textLayerDiv.className = 'textLayer';
-                textLayerDiv.style.width = `${scaledViewport.width}px`;
-                textLayerDiv.style.height = `${scaledViewport.height}px`;
-
-                pdfOverlay.appendChild(canvas);
-                pdfOverlay.appendChild(textLayerDiv);
-                pdfOverlay.setAttribute('data-original-width', viewport.width);
-                pdfOverlay.setAttribute('data-original-height', viewport.height);
-                pdfOverlay.setAttribute('data-page-number', pageNumber);
-                fileDisplayArea.appendChild(pdfOverlay);
-
-                pdfOverlay.addEventListener('click', handleClick);
-                pdfOverlay.addEventListener('mousemove', handleMouseMove);
-
-                page.render(renderContext).promise.then(function() {
-                    return page.getTextContent();
-                }).then(function(textContent) {
-                    pdfjsLib.renderTextLayer({
-                        textContent: textContent,
-                        container: textLayerDiv,
-                        viewport: scaledViewport,
-                        textDivs: []
-                    });
-                });
-                const pdfInfo = document.getElementById('pdfInfo');
-                pdfInfo.textContent = `Page ${pageNumber} Dimensions: ${viewport.width.toFixed(2)} x ${viewport.height.toFixed(2)} points`;
-
-                renderPages(pdf, pageNumber + 1);
-            });
-        }
-
-        function handleClick(e) {
-            const coordinates = getCoordinates(e);
-            const coordinateList = document.getElementById('coordinateList');
-            if (lastHighlightedItem) {
-                lastHighlightedItem.classList.remove('highlight');
-            }
-
-            const listItem = document.createElement('li');
-            listItem.textContent = `Page ${coordinates.page} - X: ${Math.round(coordinates.x)}pt, Y: ${Math.round(coordinates.y)}pt`;
-            listItem.classList.add('highlight');
-            coordinateList.insertBefore(listItem, coordinateList.firstChild);
-
-            lastHighlightedItem = listItem;
-            if (lastClickPoint) {
-                lastClickPoint.parentNode.removeChild(lastClickPoint);
-            }
-
-            const clickPoint = document.createElement('div');
-            clickPoint.className = 'clickPoint';
-            clickPoint.style.left = `${e.offsetX}px`;
-            clickPoint.style.top = `${e.offsetY}px`;
-            e.target.parentNode.appendChild(clickPoint);
-
-            lastClickPoint = clickPoint;
-
-            console.log(`Clicked at PDF coordinates - ${listItem.textContent}`);
-        }
-
-        function handleMouseMove(e) {
-            const coordinates = getCoordinates(e);
-            const pdfCoordinates = document.getElementById('pdfCoordinates');
-            pdfCoordinates.textContent = `Page ${coordinates.page} - X: ${Math.round(coordinates.x)}pt, Y: ${Math.round(coordinates.y)}pt`;
-            pdfCoordinates.style.display = 'block';
-        }
-
-        function getCoordinates(e) {
-            const pdfOverlay = e.target.closest('.pdfOverlay');
-            const rect = pdfOverlay.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
-            const pageNumber = parseInt(pdfOverlay.getAttribute('data-page-number'));
-            const scaleX = parseFloat(pdfOverlay.getAttribute('data-original-width')) / rect.width;
-            const scaleY = parseFloat(pdfOverlay.getAttribute('data-original-height')) / rect.height;
-
-            const pdfX = x * scaleX;
-            const pdfY = (rect.height - y) * scaleY; 
-
-            return {
-                page: pageNumber,
-                x: pdfX,
-                y: pdfY
-            };
-        }
-
-        document.getElementById('clearButton').addEventListener('click', function() {
-            const coordinateList = document.getElementById('coordinateList');
-            coordinateList.innerHTML = '';
-            if (lastClickPoint) {
-                lastClickPoint.parentNode.removeChild(lastClickPoint);
-                lastClickPoint = null;
-            }
-            lastClickCoordinates = null;
-            lastHighlightedItem = null;
-        });
-    </script>
-</body>
+    <script src="./script.js"></script>
 </html>
